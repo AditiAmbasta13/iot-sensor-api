@@ -7,6 +7,11 @@ A Node.js backend service that ingests IoT sensor temperature readings, persists
 - MongoDB Atlas + Mongoose
 - MQTT (via `mqtt` package)
 
+## Images
+<img width="1901" height="872" alt="image" src="https://github.com/user-attachments/assets/2a1b206f-8b26-4c37-af5f-7110513461e0" />
+<img width="1366" height="601" alt="image" src="https://github.com/user-attachments/assets/9728f328-a130-4901-85c0-5fc5567e9a71" />
+<img width="1436" height="604" alt="image" src="https://github.com/user-attachments/assets/57cc5439-4cc0-44a2-8e24-b085b4458a9f" />
+
 ## Setup
 
 **1. Clone and install**
