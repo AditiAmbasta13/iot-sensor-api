@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>IoT Sensor Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@300;400;600;700&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #080c10;
+      --bg2:       #0d1117;
+      --bg3:       #111820;
+      --border:    #1e2d3d;
+      --accent:    #00e5ff;
+      --accent2:   #ff6b35;
+      --accent3:   #39ff14;
+      --text:      #c9d1d9;
+      --text-dim:  #4a5568;
+      --text-mono: 'Share Tech Mono', monospace;
+      --text-body: 'Barlow', sans-serif;
+      --danger:    #ff4757;
+      --warn:      #ffd32a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--text-body);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0,229,255,0.015) 2px,
+        rgba(0,229,255,0.015) 4px
+      );
+      pointer-events: none;
+      z-index: 9999;
+    }
+
+    /* Grid noise texture */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none;
+      z-index: 9998;
+      opacity: 0.4;
+    }
+
+    /* ─── HEADER ─── */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg2);
+      position: sticky; top: 0; z-index: 100;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .logo-icon {
+      width: 36px; height: 36px;
+      border: 2px solid var(--accent);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      position: relative;
+      animation: pulse-border 3s ease-in-out infinite;
+    }
+
+    @keyframes pulse-border {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(0,229,255,0.4); }
+      50%       { box-shadow: 0 0 0 6px rgba(0,229,255,0); }
+    }
+
+    .logo-icon svg { color: var(--accent); }
+
+    .logo-text {
+      font-family: var(--text-mono);
+      font-size: 13px;
+      letter-spacing: 0.15em;
+      color: var(--accent);
+      text-transform: uppercase;
+    }
+
+    .logo-sub {
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      margin-top: 2px;
+    }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .status-dot {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--text-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+    }
+
+    .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--accent3);
+      animation: blink 2s ease-in-out infinite;
+    }
+
+    .dot.offline { background: var(--danger); animation: none; }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    .server-url {
+      font-family: var(--text-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      background: var(--bg3);
+      border: 1px solid var(--border);
+      padding: 6px 12px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .server-url input {
+      background: none;
+      border: none;
+      outline: none;
+      color: var(--accent);
+      font-family: var(--text-mono);
+      font-size: 11px;
+      width: 200px;
+    }
+
+    /* ─── LAYOUT ─── */
+    .main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto auto;
+      gap: 20px;
+      padding: 24px 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* ─── CARDS ─── */
+    .card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      animation: fadeUp 0.4s ease both;
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .card:nth-child(1) { animation-delay: 0.05s; }
+    .card:nth-child(2) { animation-delay: 0.10s; }
+    .card:nth-child(3) { animation-delay: 0.15s; grid-column: 1 / -1; }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg3);
+    }
+
+    .card-title {
+      font-family: var(--text-mono);
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .card-badge {
+      font-family: var(--text-mono);
+      font-size: 10px;
+      padding: 3px 8px;
+      border-radius: 3px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    .badge-post { background: rgba(0,229,255,0.1); color: var(--accent); border: 1px solid rgba(0,229,255,0.3); }
+    .badge-get  { background: rgba(57,255,20,0.1);  color: var(--accent3); border: 1px solid rgba(57,255,20,0.3); }
+
+    .card-body { padding: 20px; }
+
+    /* ─── FORM ─── */
+    .field { margin-bottom: 16px; }
+
+    .field label {
+      display: block;
+      font-family: var(--text-mono);
+      font-size: 10px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin-bottom: 6px;
+    }
+
+    .field input {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-family: var(--text-mono);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .field input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(0,229,255,0.08);
+    }
+
+    .field input::placeholder { color: var(--text-dim); }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    .hint {
+      font-size: 10px;
+      color: var(--text-dim);
+      margin-top: 4px;
+      font-family: var(--text-mono);
+    }
+
+    /* ─── BUTTON ─── */
+    .btn {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-family: var(--text-mono);
+      font-size: 12px;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: var(--bg);
+      font-weight: 700;
+    }
+
+    .btn-primary:hover {
+      background: #33eeff;
+      box-shadow: 0 0 20px rgba(0,229,255,0.4);
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      color: var(--accent3);
+      border: 1px solid var(--accent3);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(57,255,20,0.08);
+      box-shadow: 0 0 20px rgba(57,255,20,0.2);
+      transform: translateY(-1px);
+    }
+
+    .btn:active { transform: translateY(0); }
+
+    .btn::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: rgba(255,255,255,0.1);
+      opacity: 0;
+      transition: opacity 0.1s;
+    }
+
+    .btn:active::after { opacity: 1; }
+
+    /* ─── RESPONSE PANEL ─── */
+    .response-panel {
+      grid-column: 1 / -1;
+    }
+
+    .response-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .status-tag {
+      font-family: var(--text-mono);
+      font-size: 11px;
+      padding: 3px 10px;
+      border-radius: 3px;
+      letter-spacing: 0.08em;
+    }
+
+    .status-2xx { background: rgba(57,255,20,0.12); color: var(--accent3); border: 1px solid rgba(57,255,20,0.3); }
+    .status-4xx { background: rgba(255,71,87,0.12);  color: var(--danger); border: 1px solid rgba(255,71,87,0.3); }
+    .status-5xx { background: rgba(255,71,87,0.12);  color: var(--danger); border: 1px solid rgba(255,71,87,0.3); }
+    .status-idle { background: rgba(74,85,104,0.2); color: var(--text-dim); border: 1px solid var(--border); }
+
+    .response-time {
+      font-family: var(--text-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+    }
+
+    .response-body {
+      margin-top: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 16px;
+      font-family: var(--text-mono);
+      font-size: 12px;
+      line-height: 1.7;
+      min-height: 100px;
+      max-height: 280px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+      color: var(--text);
+      transition: all 0.3s;
+    }
+
+    .response-body::-webkit-scrollbar { width: 4px; }
+    .response-body::-webkit-scrollbar-track { background: var(--bg); }
+    .response-body::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .placeholder-text {
+      color: var(--text-dim);
+      font-style: italic;
+    }
+
+    /* JSON syntax highlight */
+    .json-key    { color: var(--accent); }
+    .json-string { color: #a8ff78; }
+    .json-number { color: var(--accent2); }
+    .json-bool   { color: #ff6b81; }
+    .json-null   { color: var(--text-dim); }
+
+    /* ─── LOG PANEL ─── */
+    .log-panel {
+      grid-column: 1 / -1;
+      animation-delay: 0.2s;
+    }
+
+    .log-list {
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 12px 0;
+    }
+
+    .log-list::-webkit-scrollbar { width: 4px; }
+    .log-list::-webkit-scrollbar-thumb { background: var(--border); }
+
+    .log-entry {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      padding: 6px 20px;
+      font-family: var(--text-mono);
+      font-size: 11px;
+      border-bottom: 1px solid rgba(30,45,61,0.5);
+      animation: slideIn 0.3s ease;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .log-time { color: var(--text-dim); min-width: 70px; }
+    .log-method { min-width: 40px; }
+    .log-method.post { color: var(--accent); }
+    .log-method.get  { color: var(--accent3); }
+    .log-msg { color: var(--text); flex: 1; }
+    .log-status { }
+    .log-status.ok  { color: var(--accent3); }
+    .log-status.err { color: var(--danger); }
+
+    .empty-log {
+      padding: 24px 20px;
+      font-family: var(--text-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      text-align: center;
+      letter-spacing: 0.1em;
+    }
+
+    /* ─── LOADING STATE ─── */
+    .btn.loading {
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid transparent;
+      border-top-color: currentColor;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+      vertical-align: middle;
+      margin-right: 6px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* ─── TEMP GAUGE ─── */
+    .gauge-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 14px;
+      padding: 14px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+
+    .gauge-label {
+      font-family: var(--text-mono);
+      font-size: 10px;
+      color: var(--text-dim);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      min-width: 80px;
+    }
+
+    .gauge-bar-wrap {
+      flex: 1;
+      height: 6px;
+      background: var(--bg3);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .gauge-bar {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.4s;
+      width: 0%;
+    }
+
+    .gauge-val {
+      font-family: var(--text-mono);
+      font-size: 16px;
+      font-weight: 700;
+      min-width: 70px;
+      text-align: right;
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 700px) {
+      .main { grid-template-columns: 1fr; padding: 16px; }
+      .card:nth-child(1), .card:nth-child(2) { grid-column: 1; }
+      header { padding: 14px 16px; }
+      .server-url input { width: 130px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+      </svg>
+    </div>
+    <div>
+      <div class="logo-text">SensorGrid</div>
+      <div class="logo-sub">IoT Dashboard v1.0</div>
+    </div>
+  </div>
+
+  <div class="header-right">
+    <div class="server-url">
+      <span style="color:var(--text-dim)">BASE:</span>
+      <input type="text" id="baseUrl" value="http://localhost:3000" spellcheck="false"/>
+    </div>
+    <div class="status-dot">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">LIVE</span>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- POST CARD -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Ingest Reading</span>
+      <span class="card-badge badge-post">POST /api/sensor/ingest</span>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label>Device ID</label>
+        <input type="text" id="ingestDeviceId" placeholder="sensor-01" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Temperature (°C)</label>
+          <input type="number" id="ingestTemp" placeholder="32.1" step="0.1"/>
+        </div>
+        <div class="field">
+          <label>Timestamp (ms)</label>
+          <input type="number" id="ingestTs" placeholder="auto"/>
+          <div class="hint">Leave blank → current time</div>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btnIngest" onclick="doIngest()">
+        Send Reading
+      </button>
+    </div>
+  </div>
+
+  <!-- GET CARD -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">Latest Reading</span>
+      <span class="card-badge badge-get">GET /api/sensor/:id/latest</span>
+    </div>
+    <div class="card-body">
+      <div class="field">
+        <label>Device ID</label>
+        <input type="text" id="getDeviceId" placeholder="sensor-01"/>
+      </div>
+
+      <div class="gauge-row" id="gaugeRow" style="display:none">
+        <span class="gauge-label">Temperature</span>
+        <div class="gauge-bar-wrap">
+          <div class="gauge-bar" id="gaugeBar"></div>
+        </div>
+        <span class="gauge-val" id="gaugeVal">—</span>
+      </div>
+
+      <div style="margin-top:16px"></div>
+      <button class="btn btn-secondary" id="btnGet" onclick="doGet()">
+        Fetch Latest
+      </button>
+    </div>
+  </div>
+
+  <!-- RESPONSE PANEL -->
+  <div class="card response-panel">
+    <div class="card-header">
+      <span class="card-title">Response</span>
+      <div class="response-meta">
+        <span class="status-tag status-idle" id="statusTag">IDLE</span>
+        <span class="response-time" id="responseTime"></span>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="response-body" id="responseBody">
+        <span class="placeholder-text">// Response will appear here...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOG PANEL -->
+  <div class="card log-panel">
+    <div class="card-header">
+      <span class="card-title">Request Log</span>
+      <button onclick="clearLog()" style="background:none;border:none;color:var(--text-dim);font-family:var(--text-mono);font-size:10px;cursor:pointer;letter-spacing:0.1em;text-transform:uppercase;">
+        CLEAR
+      </button>
+    </div>
+    <div class="log-list" id="logList">
+      <div class="empty-log" id="emptyLog">// No requests yet</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const getBase = () => document.getElementById('baseUrl').value.replace(/\/$/, '');
+
+  function highlightJSON(json) {
+    return json
+      .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
+        if (/^"/.test(match)) {
+          if (/:$/.test(match)) return `<span class="json-key">${match}</span>`;
+          return `<span class="json-string">${match}</span>`;
+        }
+        if (/true|false/.test(match)) return `<span class="json-bool">${match}</span>`;
+        if (/null/.test(match))       return `<span class="json-null">${match}</span>`;
+        return `<span class="json-number">${match}</span>`;
+      });
+  }
+
+  function setResponse(status, data, ms) {
+    const tag  = document.getElementById('statusTag');
+    const body = document.getElementById('responseBody');
+    const time = document.getElementById('responseTime');
+
+    const statusClass = status >= 500 ? 'status-5xx' : status >= 400 ? 'status-4xx' : 'status-2xx';
+    tag.className = `status-tag ${statusClass}`;
+    tag.textContent = `${status}`;
+    time.textContent = `${ms}ms`;
+
+    const pretty = JSON.stringify(data, null, 2);
+    body.innerHTML = highlightJSON(pretty);
+  }
+
+  function addLog(method, endpoint, status, ok) {
+    const list = document.getElementById('logList');
+    document.getElementById('emptyLog')?.remove();
+
+    const now = new Date();
+    const t = now.toTimeString().slice(0,8);
+
+    const entry = document.createElement('div');
+    entry.className = 'log-entry';
+    entry.innerHTML = `
+      <span class="log-time">${t}</span>
+      <span class="log-method ${method.toLowerCase()}">${method}</span>
+      <span class="log-msg">${endpoint}</span>
+      <span class="log-status ${ok ? 'ok' : 'err'}">${status}</span>
+    `;
+    list.prepend(entry);
+
+    // Keep max 30 entries
+    const entries = list.querySelectorAll('.log-entry');
+    if (entries.length > 30) entries[entries.length - 1].remove();
+  }
+
+  function setLoading(btnId, loading) {
+    const btn = document.getElementById(btnId);
+    if (loading) {
+      btn.classList.add('loading');
+      btn.innerHTML = `<span class="spinner"></span> Sending...`;
+    } else {
+      btn.classList.remove('loading');
+      btn.innerHTML = btnId === 'btnIngest' ? 'Send Reading' : 'Fetch Latest';
+    }
+  }
+
+  function updateGauge(temp) {
+    const gaugeRow = document.getElementById('gaugeRow');
+    const bar      = document.getElementById('gaugeBar');
+    const val      = document.getElementById('gaugeVal');
+
+    gaugeRow.style.display = 'flex';
+
+    // Map temp to 0-100% (assume -20°C to 80°C range)
+    const pct = Math.min(100, Math.max(0, ((temp + 20) / 100) * 100));
+    bar.style.width = `${pct}%`;
+
+    // Color based on temperature
+    if (temp < 0)       bar.style.background = '#74b9ff';
+    else if (temp < 25) bar.style.background = '#00e5ff';
+    else if (temp < 50) bar.style.background = '#ff6b35';
+    else                bar.style.background = '#ff4757';
+
+    val.style.color = bar.style.background;
+    val.textContent = `${temp}°C`;
+  }
+
+  async function doIngest() {
+    const deviceId    = document.getElementById('ingestDeviceId').value.trim();
+    const temperature = parseFloat(document.getElementById('ingestTemp').value);
+    const tsRaw       = document.getElementById('ingestTs').value.trim();
+
+    if (!deviceId) return alert('Device ID is required');
+    if (isNaN(temperature)) return alert('Temperature must be a number');
+
+    const body = { deviceId, temperature };
+    if (tsRaw) body.timestamp = parseInt(tsRaw);
+
+    setLoading('btnIngest', true);
+    const t0 = Date.now();
+
+    try {
+      const res  = await fetch(`${getBase()}/api/sensor/ingest`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      const ms   = Date.now() - t0;
+
+      setResponse(res.status, data, ms);
+      addLog('POST', '/api/sensor/ingest', res.status, res.ok);
+
+      if (res.ok && data.data?.temperature !== undefined) {
+        updateGauge(data.data.temperature);
+        document.getElementById('getDeviceId').value = deviceId;
+      }
+    } catch (err) {
+      setResponse(0, { error: err.message }, Date.now() - t0);
+      addLog('POST', '/api/sensor/ingest', 'ERR', false);
+    } finally {
+      setLoading('btnIngest', false);
+    }
+  }
+
+  async function doGet() {
+    const deviceId = document.getElementById('getDeviceId').value.trim();
+    if (!deviceId) return alert('Device ID is required');
+
+    setLoading('btnGet', true);
+    const t0 = Date.now();
+
+    try {
+      const res  = await fetch(`${getBase()}/api/sensor/${encodeURIComponent(deviceId)}/latest`);
+      const data = await res.json();
+      const ms   = Date.now() - t0;
+
+      setResponse(res.status, data, ms);
+      addLog('GET', `/api/sensor/${deviceId}/latest`, res.status, res.ok);
+
+      if (res.ok && data.data?.temperature !== undefined) {
+        updateGauge(data.data.temperature);
+      }
+    } catch (err) {
+      setResponse(0, { error: err.message }, Date.now() - t0);
+      addLog('GET', `/api/sensor/${deviceId}/latest`, 'ERR', false);
+    } finally {
+      setLoading('btnGet', false);
+    }
+  }
+
+  function clearLog() {
+    const list = document.getElementById('logList');
+    list.innerHTML = '<div class="empty-log" id="emptyLog">// No requests yet</div>';
+  }
+
+  // Allow Enter key to trigger buttons
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.target.closest('.card')) {
+      const card = e.target.closest('.card');
+      const btn  = card.querySelector('.btn');
+      if (btn) btn.click();
+    }
+  });
+</script>
+</body>
+</html>
